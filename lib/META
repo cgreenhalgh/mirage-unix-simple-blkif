@@ -1,0 +1,12 @@
+# OASIS_START
+# DO NOT EDIT (digest: e2a69ba68deb368b9ff24f0e54ca923d)
+version = "0.1"
+description = "Simple OS.blkif implementation for Mirage on Unix"
+requires = "lwt lwt.syntax lwt.unix cstruct cstruct.syntax mirage"
+archive(byte) = "unix_simple_blkdev.cma"
+archive(byte, plugin) = "unix_simple_blkdev.cma"
+archive(native) = "unix_simple_blkdev.cmxa"
+archive(native, plugin) = "unix_simple_blkdev.cmxs"
+exists_if = "unix_simple_blkdev.cma"
+# OASIS_STOP
+

@@ -1,0 +1,29 @@
+OASISFormat: 0.3
+Name:        unix-simple-blkdev
+Version:     0.1
+Synopsis:    Simple OS.blkif implementation for Mirage on Unix
+Authors:     Chris Greenhalgh
+License:     BSD3
+Plugins:     META (0.3)
+BuildTools:  ocamlbuild
+
+Library unix_simple_blkdev
+  CompiledObject:  best
+  Path:            lib
+  Findlibname:     unix-simple-blkdev
+  Modules:         Blkdev
+  BuildDepends:    lwt, lwt.syntax, lwt.unix, cstruct, cstruct.syntax, mirage
+
+Executable blkdev_test
+  CompiledObject:  best
+  Path:            test
+  MainIs:          blkdev_test.ml
+  Build$:          flag(tests)
+  Custom:          true
+  Install:         false
+  BuildDepends:    lwt, lwt.syntax, lwt.unix, cstruct, cstruct.syntax, oUnit, unix-simple-blkdev, mirage
+
+Test blkdev_test
+  Run$:            flag(tests)
+  Command:         $blkdev_test
+  WorkingDirectory:test
