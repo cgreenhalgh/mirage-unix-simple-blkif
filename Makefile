@@ -6,6 +6,9 @@ config:
 build:
 	ocaml setup.ml -build
 
+install:
+	ocaml setup.ml -install
+
 clean:
 	ocaml setup.ml -clean
 	${RM} -f testfile
