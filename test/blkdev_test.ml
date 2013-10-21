@@ -113,12 +113,31 @@ let test_rw1() =
                                 write_blocks (ix+1) (n-1)
                 in
                 write_blocks 0 blocks >>
-                (* TODO read... *)
                 (* tidy up *)
                 (blk#destroy; return ())
         in
         Lwt_main.run(fn())
 
+(* we don't really have a suitable test harness for the Mirage provider
+   as we can only call OS.Main.run once *)
+let test_provider() =
+  let id = "testid" in
+  let main wake =
+    lwt blkif = OS.Devices.find_blkif id in
+    Lwt.wakeup wake blkif;
+    return ()
+  in let test () =
+    let th,wake = Lwt.task () in
+    lwt _ = Blkdev.add_provider id "testfile" in
+    OS.Main.run (main wake);
+    lwt blkif = th in
+    match blkif with
+    | None -> fail(Blkdev.Error("Blkif not found"))
+    | Some blkif -> 
+      Printf.printf "Got blkif %s\n%!" id;
+      return ()
+  in
+  Lwt_main.run(test())
 
 let _ =
     let verbose = ref false in
@@ -130,7 +149,8 @@ let _ =
     [
             "create" >:: test_create;
             "size" >:: test_size;
-            "rw1" >:: test_rw1
+            "rw1" >:: test_rw1;
+            "provider" >:: test_provider
         
     ] in
   run_test_tt ~verbose:!verbose suite
