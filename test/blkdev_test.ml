@@ -55,6 +55,32 @@ let test_size() =
                 return () in
         Lwt_main.run(fn())
 
+let test_extend() = 
+        let fn() = 
+                lwt blk = create() in
+                Printf.printf "Note: test assumes testfile is 1M\n%!";
+                assert_equal blk#size (Int64.mul 1024L 1024L);
+                let css = blk#read_512 (Int64.div blk#size 512L) 1L in
+                (* read past end *)
+                lwt cso = Lwt_stream.get css in
+                Printf.printf "Done read/get\n%!";
+                let rec is_zero cso i =
+                  match cso with 
+                  | None -> false
+                  | Some cs -> 
+                        if i >= Cstruct.len cs then true
+                        else if (Cstruct.get_uint8 cs i) != 0 then false
+                        else is_zero cso (i+1) in
+                assert_equal (is_zero cso 0) true;
+                assert_equal blk#size (Int64.mul 1024L 1024L);
+                let page = OS.Io_page.get 1 in
+                blk#write_page blk#size page >>= fun () ->
+                assert_equal blk#size Int64.(add (of_int (OS.Io_page.length
+                        page)) (mul 1024L 1024L));
+                blk#destroy;
+                return () in
+        Lwt_main.run(fn())
+
 let test_rw1() = 
         let fn() =
                 (* create a blkdev *)
@@ -149,6 +175,7 @@ let _ =
     [
             "create" >:: test_create;
             "size" >:: test_size;
+            "extend" >:: test_extend;
             "rw1" >:: test_rw1;
             "provider" >:: test_provider
         

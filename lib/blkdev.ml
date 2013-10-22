@@ -76,7 +76,7 @@ type request = Read of rrequest | Write of wrequest | Destroy
 type t = {
   id: string;
   fd: Lwt_unix.file_descr;
-  size: int;
+  size: int ref;
   readwrite : bool;
   requests : request Lwt_mvar.t;
 }
@@ -92,14 +92,20 @@ let rec handle_request t =
   | Read { roffset; rlength; rdone } -> 
     let buf = String.create rlength in
     lwt _ = Lwt_unix.lseek t.fd roffset Lwt_unix.SEEK_SET in
-    lwt cnt = Lwt_unix.read t.fd buf 0 rlength in
+    let maxlen = min rlength (max 0 (!(t.size)-roffset)) in
+    lwt cnt = if maxlen > 0 then Lwt_unix.read t.fd buf 0 maxlen 
+      else return 0 in
+    (*Printf.printf "Read %d of max %d of req %d at %d\n%!" 
+      cnt maxlen rlength roffset;*)
     let rval = 
-      if (cnt<=0) then None
-      else if (cnt==rlength) then
+      if (cnt==rlength) then
         Some (Cstruct.of_string buf)
       else 
-	let cs = Cstruct.create cnt in
-	Cstruct.blit_from_string buf 0 cs 0 cnt;
+	let cs = Cstruct.create rlength in
+        if cnt > 0 then Cstruct.blit_from_string buf 0 cs 0 cnt;
+        for i = cnt to rlength-1 do
+          Cstruct.set_uint8 cs i 0 
+        done;
         Some cs
     in 
     Lwt.wakeup rdone rval; 
@@ -108,7 +114,8 @@ let rec handle_request t =
     lwt _ = Lwt_unix.lseek t.fd woffset Lwt_unix.SEEK_SET in
     let wlength = OS.Io_page.length wpage in
     let bs = OS.Io_page.to_string wpage in
-    lwt _ = Lwt_unix.write t.fd bs 0 wlength in 
+    lwt _ = Lwt_unix.write t.fd bs 0 wlength in
+    if woffset+wlength > !(t.size) then t.size := woffset+wlength;
     Lwt.wakeup wdone ();
     return false
   in if ok then return () else handle_request t
@@ -160,7 +167,7 @@ let create ?(readwrite=true) (id:string) (filename:string) : OS.Devices.blkif Lw
   (* internal state *)
   lwt { Lwt_unix.st_size = size; _ } = Lwt_unix.fstat fd in
   let requests = Lwt_mvar.create_empty () in
-  let t = { id; fd; size; readwrite; requests } in
+  let t = { id; fd; size = ref size; readwrite; requests } in
   (* worker thread *)
   Lwt.async (function () -> handle_request t);
   (* blk device *)
@@ -169,7 +176,7 @@ let create ?(readwrite=true) (id:string) (filename:string) : OS.Devices.blkif Lw
           method read_512 = read_512 t
           method write_page = write_page t
           method sector_size = 4096
-          method size = Int64.of_int size
+          method size = Int64.of_int !(t.size)
           method readwrite = readwrite
           method ppname = sprintf "Blkdev:%s(%s)" id filename
           method destroy = destroy t
